@@ -1,0 +1,44 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Course files (PDFs, videos, thumbnails)
+    match /courses/{courseId}/{allPaths=**} {
+      // All authenticated users can read course files
+      allow read: if isAuthenticated();
+      
+      // Only admins can write (upload/delete) course files
+      allow write: if isAdmin();
+    }
+    
+    // User profile pictures
+    match /users/{userId}/profile/{fileName} {
+      // Users can read their own profile pictures
+      allow read: if isAuthenticated();
+      
+      // Users can upload their own profile pictures
+      // File size limit: 5MB
+      allow write: if isAuthenticated() && 
+                     request.auth.uid == userId &&
+                     request.resource.size < 5 * 1024 * 1024;
+    }
+    
+    // Temporary uploads (for admin uploads in progress)
+    match /temp/{userId}/{fileName} {
+      // Only the user who uploaded can read/write
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Auto-delete after 24 hours (set via Cloud Function)
+    }
+  }
+}

@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Anyone can read user profiles
+      allow read: if isAuthenticated();
+      
+      // Users can only create/update their own profile
+      // Admins can update any profile
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Courses collection
+    match /courses/{courseId} {
+      // Anyone authenticated can read published courses
+      allow read: if isAuthenticated() && resource.data.isPublished == true;
+      
+      // Admins can read all courses
+      allow read: if isAdmin();
+      
+      // Only admins can create, update, or delete courses
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Lectures collection
+    match /lectures/{lectureId} {
+      // Anyone authenticated can read published lectures
+      allow read: if isAuthenticated() && resource.data.isPublished == true;
+      
+      // Admins can read all lectures
+      allow read: if isAdmin();
+      
+      // Only admins can create, update, or delete lectures
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Live sessions collection
+    match /liveSessions/{sessionId} {
+      // Anyone authenticated can read live sessions
+      allow read: if isAuthenticated();
+      
+      // Only admins can create, update, or delete live sessions
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Analytics collection
+    match /analytics/{analyticsId} {
+      // Only authenticated users can create analytics events
+      allow create: if isAuthenticated();
+      
+      // Only admins can read analytics
+      allow read: if isAdmin();
+      
+      // No one can update or delete
+      allow update, delete: if false;
+    }
+    
+    // Notification requests collection
+    match /notificationRequests/{requestId} {
+      // Only admins can create notification requests
+      allow create: if isAdmin();
+      
+      // Admins can read their own requests
+      allow read: if isAdmin();
+      
+      // No one can update or delete
+      allow update, delete: if false;
+    }
+    
+    // Scheduled notifications collection
+    match /scheduledNotifications/{notificationId} {
+      // Only admins can create scheduled notifications
+      allow create: if isAdmin();
+      
+      // Admins can read scheduled notifications
+      allow read: if isAdmin();
+      
+      // System can update (mark as sent)
+      allow update: if isAdmin();
+      
+      // No one can delete
+      allow delete: if false;
+    }
+  }
+}
